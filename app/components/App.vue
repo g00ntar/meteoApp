@@ -10,13 +10,33 @@
 							<Button text="Add task" @tap="onButtonTap" />
 					</StackLayout>
 				</TabViewItem>
-				<TabViewItem title="Output">
-					<!-- <Label class="message" :text="msg"/> -->
-					<RadCartesianChart>
-						<LineSeries v-tkCartesianSeries :items="categoricalSource" categoryProperty="Country" valueProperty="Amount" />
-						<CategoricalAxis v-tkCartesianHorizontalAxis />
-						<LinearAxis v-tkCartesianVerticalAxis />
-					</RadCartesianChart>
+				<TabViewItem title="Table">
+					<StackLayout>
+						<Label class="message" text="Table"/>
+						<ListView for="item in dataSource"> 
+							<v-template>
+								<FlexboxLayout>
+									<Label class="table-item" :text="item.time" width="48%"/> 
+									<Label class="table-item" :text="item.data" width="48%"/>
+								</FlexboxLayout> 
+							</v-template>
+						</ListView>
+					</StackLayout>
+				</TabViewItem>
+				<TabViewItem title="Chart">
+					<StackLayout>
+						<Label class="message" text="Chart"/>
+						<RadCartesianChart>
+							<LineSeries
+								v-tkCartesianSeries 
+								:items="dataSource"
+								categoryProperty="time"
+								valueProperty="data"
+							/>
+							<CategoricalAxis v-tkCartesianHorizontalAxis />
+							<LinearAxis v-tkCartesianVerticalAxis />
+						</RadCartesianChart>
+					</StackLayout>
 				</TabViewItem>
 			</TabView>
 		</Page>
@@ -36,10 +56,28 @@
 
 	const KELVIN = -273.15
 
-	const PARSERS = {
-		TEMP: function(data) {
-			return Math.round((data+KELVIN)*10)/10
-		} 
+	const DATATYPE = {
+		DEFAULT: {
+			parser: function(data){
+				return data
+			}
+		},
+		TIME: {
+			parser: function(timeString){
+				return timeString.split(':')[0]
+			}
+		},
+		TEMP: {
+			name: 'temp',
+			field: 'T2',
+			parser: function(data) {
+				return Math.round((data+KELVIN)*10)/10
+			},
+		},
+		HUMIDITY:{
+			name: 'humidity',
+			field: '',
+		}
 	}
 
 	const formatDate = format('yyyy-MM-dd');
@@ -67,7 +105,7 @@
 	function parseData(responseData, parser) {
 		return responseData.times.map((t,i)=>{
 			return {
-				time: t,
+				time: PARSERS.TIME(t),
 				data: parser(responseData.data[i])
 			}
 		})
@@ -85,19 +123,11 @@
 				})
 				.then(r=>r.data)
 				.then(d=>parseData(d,PARSERS.TEMP))
-				.then(console.log)
+				.then(d=>{console.log(d); return d})
+				.then(d=>{this.dataSource=d})
 				.catch(console.error)
 			}
 		},
-		created() {
-        this.categoricalSource = new ObservableArray([
-            { Country: "Germany", Amount: 15, SecondVal: 14, ThirdVal: 24, Impact: 0, Year: 0 },
-            { Country: "France", Amount: 13, SecondVal: 23, ThirdVal: 25, Impact: 0, Year: 0 },
-            { Country: "Bulgaria", Amount: 24, SecondVal: 17, ThirdVal: 23, Impact: 0, Year: 0 },
-            { Country: "Spain", Amount: 11, SecondVal: 19, ThirdVal: 24, Impact: 0, Year: 0 },
-            { Country: "USA", Amount: 18, SecondVal: 8, ThirdVal: 21, Impact: 0, Year: 0 }
-        ]);
-    },
 		data() {
 			return {
 				msg: 'Choose date and time',
@@ -108,10 +138,11 @@
 					"06",
 					"12",
 					"18"
+			
 				],
-				categoricalSource: ""
+				dataSource: []
 
-			}
+}
 		}
 	}
 </script>
@@ -127,5 +158,9 @@ ActionBar {
 	text-align: center;
 	font-size: 20;
 	color: #333333;
+}
+
+.table-item {
+	text-align: center;
 }
 </style>
