@@ -11,20 +11,18 @@
 					</StackLayout>
 				</TabViewItem>
 				<TabViewItem title="Output">
-					<Label class="message" :text="msg"/>
-					<!-- <RadCartesianChart>
+					<!-- <Label class="message" :text="msg"/> -->
+					<RadCartesianChart>
 						<LineSeries v-tkCartesianSeries :items="categoricalSource" categoryProperty="Country" valueProperty="Amount" />
 						<CategoricalAxis v-tkCartesianHorizontalAxis />
 						<LinearAxis v-tkCartesianVerticalAxis />
-					</RadCartesianChart> -->
+					</RadCartesianChart>
 				</TabViewItem>
 			</TabView>
 		</Page>
 </template>
 
 <script>
-	import ChartVue from 'nativescript-ui-chart/vue'
-	
 	import {ObservableArray} from "data/observable-array"
 
 	import axios from 'axios';
