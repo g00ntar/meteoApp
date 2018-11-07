@@ -56,7 +56,7 @@
 
 	const KELVIN = -273.15
 
-	const DATATYPE = {
+	const DATA_PARSERS = {
 		DEFAULT: {
 			parser: function(data){
 				return data
@@ -67,18 +67,44 @@
 				return timeString.split(':')[0]
 			}
 		},
-		TEMP: {
-			name: 'temp',
+		TEMPERATURE: {
+			name: 'Temperatura powietrza',
 			field: 'T2',
 			parser: function(data) {
 				return Math.round((data+KELVIN)*10)/10
 			},
 		},
+		SKIN_TEMPERATURE:{
+			name: 'Temperatura odczuwalna',
+			filed: 'TSK',
+			parser: function(data) {
+				return Math.round((data+KELVIN)*10)/10
+			},
+		},
 		HUMIDITY:{
-			name: 'humidity',
-			field: '',
+			name: 'Wilgotność',
+			field: 'Q2'
+		},
+		PRESSURE: {
+			name: 'Ciśnienie',
+			field: 'PSFC'
+		},
+		PRECIPITATION: {
+			name: 'Opady',
+			require: ['RANNIC', 'RANIC'],
+			parser: function(data) {
+				return data[0] + data[1]
+			}
+		},
+		RANNIC: {
+			field: 'RANNIC'
+		},
+		RANIC: {
+			field: 'RANIC'
 		}
 	}
+
+	const DEFAULT_LIST = ['TEMPERATURE', 'PRESSURE','HUMIDITY']
 
 	const formatDate = format('yyyy-MM-dd');
 
@@ -87,9 +113,9 @@
 	}
 
 	function urlBuilder(
-		date = dateFormatter(new Date()),
 		field = 'T2',
 		coordinates = COORDINATES,
+		date = dateFormatter(new Date()),
 		grid = 'd01_XLONG_XLAT',
 		model = 'wrf',
 		level = 0,
@@ -97,10 +123,8 @@
 		return ["model", "grid", "coordinates", "field", "level", "date"]
 				.reduce(function (accumulator,elementName){
 					return accumulator + `${elementName}/${eval(elementName)}/`
-				}, METEO_API_URL) + 'forecast/';
+				},'/') + 'forecast/';
 	}
-
-	
 
 	function parseData(responseData, parser) {
 		return responseData.times.map((t,i)=>{
@@ -111,20 +135,33 @@
 		})
 	}
 
+	const meteoApi = axios.create({
+		baseURL: METEO_API_URL,
+		method: 'POST',
+		headers: HEADERS
+	});
+	
 	export default {
 		methods: {
 			onButtonTap: function(args) {
-					let url = urlBuilder(dateFormatter(this.selectedDate, this.listOfTimes[this.selectedTime])
-				);
-				axios({
-					method: 'POST',
-					url: url,
-					headers: HEADERS
-				})
-				.then(r=>r.data)
-				.then(d=>parseData(d,PARSERS.TEMP))
+					// let url = urlBuilder(dateFormatter(this.selectedDate, this.listOfTimes[this.selectedTime]));
+				let urlList = DEFAULT_LIST.map(dataType=>meteoApi({url:urlBuilder(DATA_PARSERS[dataType].field)}))
+				// console.log(urlList)
+
+				axios.all(urlList)
+				// .then(r=>r.data)
+				// .then(d=>parseData(d,PARSERS.TEMP))
+				.then(axios.spread(function (...Args) {
+					let responseData = {};
+					Args.forEach(response => {
+						let type = response.config.url.split('/')[12]
+						console.log()	
+					});
+					
+					
+				}))
 				.then(d=>{console.log(d); return d})
-				.then(d=>{this.dataSource=d})
+				// .then(d=>{this.dataSource=d})
 				.catch(console.error)
 			}
 		},
@@ -141,8 +178,7 @@
 			
 				],
 				dataSource: []
-
-}
+			}
 		}
 	}
 </script>
