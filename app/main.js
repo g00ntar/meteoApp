@@ -2,8 +2,10 @@ import Vue from 'nativescript-vue';
 import App from './components/App';
 import VueDevtools from 'nativescript-vue-devtools';
 
-// import ChartVue from 'nativescript-ui-chart/vue';
-const ChartVue = require('nativescript-ui-chart/vue')
+import ChartVue from 'nativescript-ui-chart/vue';
+// import * as geolocation from 'nativescript-geolocation';
+
+// Vue.registerElement('Mapbox', () => require('nativescript-mapbox').MapboxView);
 
 if (TNS_ENV !== 'production') {
 	Vue.use(VueDevtools);
@@ -14,3 +16,4 @@ Vue.config.silent = TNS_ENV === 'production';
 new Vue({
 	render: h => h('frame', [h(App)]),
 }).$start();
+// Vue.registerElement('Mapbox', () => require('nativescript-mapbox').MapboxView);

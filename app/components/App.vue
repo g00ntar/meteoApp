@@ -7,35 +7,70 @@
 							<Label class="message" :text="msg"/>
 							<DatePicker v-model="selectedDate" />
 							<ListPicker v-model="selectedTime" :items="listOfTimes" />
-							<Button text="Add task" @tap="onButtonTap" />
+							<Button :text="coordinates !== null ? 'Pobierz dane' : 'Oczekiwanie na lokalizację'" :isEnabled="coordinates !== null" @tap="onButtonTap" />
 					</StackLayout>
 				</TabViewItem>
 				<TabViewItem title="Table">
 					<StackLayout>
 						<Label class="message" text="Table"/>
-						<ListView for="item in dataSource"> 
+						<ListView for="item in dataSource" @itemTap="onItemTap"> 
 							<v-template>
 								<FlexboxLayout>
-									<Label class="table-item" :text="item.time" width="48%"/> 
-									<Label class="table-item" :text="item.data" width="48%"/>
+									<Label class="table-item table-item--time" :text="new Date(item.time)" /> 
+									<Label class="table-item table-item--temperature" :text="item.TEMPERATURE" />
+									<Label class="table-item table-item--pressure" :text="item.PRESSURE" />
+									<Label class="table-item table-item--humidity" :text="item.HUMIDITY" />
 								</FlexboxLayout> 
 							</v-template>
 						</ListView>
 					</StackLayout>
 				</TabViewItem>
 				<TabViewItem title="Chart">
+					<FlexboxLayout flexDirection="column">
+						<StackLayout>
+							<Label class="message" text="Temperatura"/>
+							<RadCartesianChart>
+								<LineSeries
+									v-tkCartesianSeries 
+									:items="dataSource"
+									categoryProperty="time"
+									valueProperty="TEMPERATURE"
+								/>
+								<DateTimeContinuousAxis dateFormat="hh" v-tkCartesianHorizontalAxis />
+								<LinearAxis v-tkCartesianVerticalAxis />
+							</RadCartesianChart>
+						</StackLayout>
+						<StackLayout>
+							<Label class="message" text="Ciśnienie"/>
+							<RadCartesianChart>
+								<LineSeries
+									v-tkCartesianSeries 
+									:items="dataSource"
+									categoryProperty="time"
+									valueProperty="PRESSURE"
+								/>
+								<DateTimeContinuousAxis dateFormat="hh" v-tkCartesianHorizontalAxis />
+								<LinearAxis v-tkCartesianVerticalAxis />
+							</RadCartesianChart>
+						</StackLayout>
+						<StackLayout>
+							<Label class="message" text="Wilgotność"/>
+							<RadCartesianChart>
+								<LineSeries
+									v-tkCartesianSeries 
+									:items="dataSource"
+									categoryProperty="time"
+									valueProperty="HUMIDITY"
+								/>
+								<DateTimeContinuousAxis dateFormat="hh" v-tkCartesianHorizontalAxis />
+								<LinearAxis v-tkCartesianVerticalAxis />
+							</RadCartesianChart>
+						</StackLayout>
+					</FlexboxLayout> 
+				</TabViewItem>
+				<TabViewItem title="Map">
 					<StackLayout>
-						<Label class="message" text="Chart"/>
-						<RadCartesianChart>
-							<LineSeries
-								v-tkCartesianSeries 
-								:items="dataSource"
-								categoryProperty="time"
-								valueProperty="data"
-							/>
-							<CategoricalAxis v-tkCartesianHorizontalAxis />
-							<LinearAxis v-tkCartesianVerticalAxis />
-						</RadCartesianChart>
+
 					</StackLayout>
 				</TabViewItem>
 			</TabView>
@@ -43,16 +78,24 @@
 </template>
 
 <script>
-	import {ObservableArray} from "data/observable-array"
+	// import {ObservableArray} from "data/observable-array"
 
 	import axios from 'axios';
-	import { format } from 'date-fns/fp'
+	import { format, getTime, addHours } from 'date-fns'
 
-	const COORDINATES = '188,281';
+	// import * as geolocation from 'nativescript-geolocation';
+	var geolocation = require("nativescript-geolocation");
+
+
+	const ROWCOL = '188,281';
 	const METEO_API_URL = 'https://api.meteo.pl/api/v1/'
 	const HEADERS = {
 		Authorization: `Token ${process.env.METEO_API_KEY}`
 	};
+
+	const GRID = 'd01_XLONG_XLAT';
+	const MODEL = 'wrf';
+	const LEVEL = 0;
 
 	const KELVIN = -273.15
 
@@ -63,13 +106,16 @@
 			}
 		},
 		TIME: {
-			parser: function(timeString){
-				return timeString.split(':')[0]
+			parser: function(dataTimeString){
+				// return timeString.split(':')[0].split('-')[2]
+				let dataTimeArray = dataTimeString.split(':')[0].split('T')
+				return getTime(addHours(new Date(dataTimeArray[0]), parseInt(dataTimeArray[1])))
 			}
 		},
 		TEMPERATURE: {
 			name: 'Temperatura powietrza',
 			field: 'T2',
+			unit: '℃',
 			parser: function(data) {
 				return Math.round((data+KELVIN)*10)/10
 			},
@@ -77,17 +123,26 @@
 		SKIN_TEMPERATURE:{
 			name: 'Temperatura odczuwalna',
 			filed: 'TSK',
+			unit: '℃',
 			parser: function(data) {
 				return Math.round((data+KELVIN)*10)/10
 			},
 		},
 		HUMIDITY:{
 			name: 'Wilgotność',
-			field: 'Q2'
+			field: 'Q2',
+			unit: '%',
+			parser: function(data){
+				return Math.round(data*1000)/10
+			}
 		},
 		PRESSURE: {
 			name: 'Ciśnienie',
-			field: 'PSFC'
+			field: 'PSFC',
+			unit: 'hPa',
+			parser: function(data){
+				return Math.round(data/100)
+			}
 		},
 		PRECIPITATION: {
 			name: 'Opady',
@@ -106,32 +161,36 @@
 
 	const DEFAULT_LIST = ['TEMPERATURE', 'PRESSURE','HUMIDITY']
 
-	const formatDate = format('yyyy-MM-dd');
-
-	function dateFormatter(date, time = '00') {
-		return `${formatDate(date)}T${time}`
+	function requestDateFormatter(date, time = '00') {
+		return `${format(date,'yyyy-MM-dd')}T${time}`
 	}
 
-	function urlBuilder(
-		field = 'T2',
-		coordinates = COORDINATES,
-		date = dateFormatter(new Date()),
-		grid = 'd01_XLONG_XLAT',
-		model = 'wrf',
-		level = 0,
-	){
+	function urlBuilder(options){
+		options = Object.assign(
+			{},{
+				field: 'T2',
+				coordinates: ROWCOL,
+				date: requestDateFormatter(new Date()),
+				grid: GRID,
+				model: MODEL,
+				level: LEVEL
+			},
+			options
+		)
+
+		// console.log(options)
+
 		return ["model", "grid", "coordinates", "field", "level", "date"]
 				.reduce(function (accumulator,elementName){
-					return accumulator + `${elementName}/${eval(elementName)}/`
+					return accumulator + `${elementName}/${options[elementName]}/`
 				},'/') + 'forecast/';
 	}
 
-	function parseData(responseData, parser) {
+	function parseData(responseData, dataType) {
 		return responseData.times.map((t,i)=>{
-			return {
-				time: PARSERS.TIME(t),
-				data: parser(responseData.data[i])
-			}
+			let obj = {time: DATA_PARSERS.TIME.parser(t)};
+			obj[dataType] = DATA_PARSERS[dataType].parser(responseData.data[i])
+			return obj
 		})
 	}
 
@@ -140,29 +199,34 @@
 		method: 'POST',
 		headers: HEADERS
 	});
+
+	
 	
 	export default {
 		methods: {
 			onButtonTap: function(args) {
-					// let url = urlBuilder(dateFormatter(this.selectedDate, this.listOfTimes[this.selectedTime]));
-				let urlList = DEFAULT_LIST.map(dataType=>meteoApi({url:urlBuilder(DATA_PARSERS[dataType].field)}))
-				// console.log(urlList)
 
-				axios.all(urlList)
-				// .then(r=>r.data)
-				// .then(d=>parseData(d,PARSERS.TEMP))
+				let urlList = DEFAULT_LIST.map((dataType)=>{
+					return urlBuilder({field: DATA_PARSERS[dataType].field, date: requestDateFormatter(this.selectedDate, this.listOfTimes[this.selectedTime])})
+				})
+
+				axios.all(urlList.map(url=>meteoApi({url})))
 				.then(axios.spread(function (...Args) {
-					let responseData = {};
+					let responseData = [];
 					Args.forEach(response => {
-						let type = response.config.url.split('/')[12]
-						console.log()	
+						let field = response.config.url.split('/')[12]
+						let dataType = Object.keys(DATA_PARSERS).find(key=>DATA_PARSERS[key].field == field);				
+						parseData(response.data, dataType).forEach((dataEntry, index)=>{
+							responseData[index] = Object.assign({},responseData[index], dataEntry)
+						})
 					});
-					
-					
+					return responseData;
 				}))
-				.then(d=>{console.log(d); return d})
-				// .then(d=>{this.dataSource=d})
+				.then(responseData=>{this.dataSource=responseData})
 				.catch(console.error)
+			},
+			onItemTap: function (event) {
+				console.log(event.item)
 			}
 		},
 		data() {
@@ -177,8 +241,37 @@
 					"18"
 			
 				],
-				dataSource: []
+				dataSource: [],
+				coordinates: null
 			}
+		},
+		created: function(){
+			 geolocation
+			 .isEnabled()
+			 .then(isEnabled=>{
+				if (!isEnabled) {
+					geolocation
+					.enableLocationRequest()
+					.then(event=>{
+						console.log(event)
+					})
+					.catch(error=>{
+						console.log("Error enableLocationRequest: " + (error.message || error));
+					});
+				}
+			})
+			.then(()=>{
+				geolocation
+				.getCurrentLocation()
+				.then(location=>{
+					this.coordinates = location
+				}).catch(error=>{
+					console.log("Error getCurrentLocation: " + (error.message || error));
+				})
+			})
+			.catch(error=>{
+				console.log("Error isEnabled: " + (error.message || error));
+			});
 		}
 	}
 </script>
@@ -198,5 +291,11 @@ ActionBar {
 
 .table-item {
 	text-align: center;
+	flex-basis: 1;
+	flex-grow: 1;
+}
+
+.table-item--time {
+	flex-shrink: 1;
 }
 </style>
